@@ -1273,11 +1273,43 @@ function updateLineViolationTracking(type, index, isViolating) {
   }
 }
 
+// Board sizing: the desktop layout was hand-tuned at CELL=58, EDGE=70,
+// GAP=3, MARGIN=8. Everything below keeps those exact proportions but
+// derives them from whatever CELL size actually fits the viewport, so the
+// 9x9 grid (plus its clue-number edges) shrinks to fit narrow/mobile
+// screens instead of overflowing. To retune the look, adjust CELL_MIN/MAX
+// or the *_RATIO constants — render() and the CSS (.cell, .clueNumBig,
+// .cornerBadge, via the --cell-size/--edge-size custom properties) both
+// follow automatically.
+const CELL_MIN = 22;
+const CELL_MAX = 58;
+const EDGE_RATIO = 70 / 58;
+const GAP_RATIO = 3 / 58;
+const MARGIN_RATIO = 8 / 58;
+
+function computeBoardMetrics() {
+  const container = document.getElementById('gameScreen');
+  const available = (container ? container.clientWidth : window.innerWidth) - 4;
+  // available = 9*CELL + 8*GAP + 2*EDGE + 2*MARGIN, all expressed as a
+  // multiple of CELL via the ratios above — solve for CELL.
+  const widthPerCell = 9 + 8 * GAP_RATIO + 2 * EDGE_RATIO + 2 * MARGIN_RATIO;
+  const fitted = Math.floor(available / widthPerCell);
+  const CELL = Math.max(CELL_MIN, Math.min(CELL_MAX, fitted));
+  const EDGE = Math.round(CELL * EDGE_RATIO);
+  const GAP = Math.max(1, Math.round(CELL * GAP_RATIO));
+  const MARGIN = Math.round(CELL * MARGIN_RATIO);
+
+  const wrap = document.getElementById('boardWrap');
+  if (wrap) {
+    wrap.style.setProperty('--cell-size', `${CELL}px`);
+    wrap.style.setProperty('--edge-size', `${EDGE}px`);
+  }
+
+  return { CELL, EDGE, GAP, MARGIN };
+}
+
 function render() {
-  const CELL = 58;
-  const EDGE = 70;
-  const GAP = 3;
-  const MARGIN = 8;
+  const { CELL, EDGE, GAP, MARGIN } = computeBoardMetrics();
 
   const wrap = document.getElementById('boardWrap');
   wrap.innerHTML = '';
@@ -1663,5 +1695,22 @@ for (const card of document.querySelectorAll('.dailyCard')) {
 const saveToggle = document.getElementById('saveToggle');
 saveToggle.checked = isSavingEnabled();
 saveToggle.addEventListener('change', (e) => setSavingEnabled(e.target.checked));
+
+// Re-fit the board when the viewport changes (rotation, browser chrome
+// showing/hiding, resizing a desktop window). Debounced so a drag-resize
+// doesn't trigger a full re-render on every frame, and skipped while the
+// board isn't on screen since computeBoardMetrics() needs it visible to
+// read a meaningful width.
+let resizeRenderTimer = null;
+window.addEventListener('resize', () => {
+  if (document.getElementById('gameScreen').classList.contains('hidden')) return;
+  clearTimeout(resizeRenderTimer);
+  resizeRenderTimer = setTimeout(render, 120);
+});
+window.addEventListener('orientationchange', () => {
+  if (document.getElementById('gameScreen').classList.contains('hidden')) return;
+  clearTimeout(resizeRenderTimer);
+  resizeRenderTimer = setTimeout(render, 120);
+});
 
 showMenu();
