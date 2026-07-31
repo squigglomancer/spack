@@ -97,13 +97,20 @@
   .cornerBadge.draw { color:var(--panel-close); }
   .modalOverlay { position:fixed; top:0; left:0; width:100%; height:100%;
                   background:var(--scrim); display:flex; align-items:center;
-                  justify-content:center; z-index:200; }
+                  justify-content:center; z-index:200; padding:20px; box-sizing:border-box; }
   .modalOverlay.hidden { display:none; }
-  .modalBox { background:var(--panel-bg); padding:28px 34px; border-radius:8px; max-width:560px;
-              position:relative; color:var(--panel-text); font-size:21px; line-height:1.5; }
-  .modalBox h3 { margin-top:0; font-size:29px; }
+  /* width/max-height cap the box to the viewport (minus the overlay's 20px
+     padding on each side); .modalContent is the part that scrolls, so
+     .modalClose — a sibling, not a child of it — always stays visible in
+     the box's top-right corner instead of scrolling out of reach. */
+  .modalBox { background:var(--panel-bg); padding:28px 34px; border-radius:8px; width:min(560px, 100%);
+              max-height:calc(100vh - 40px); box-sizing:border-box; display:flex; flex-direction:column;
+              position:relative; color:var(--panel-text); font-size:clamp(16px, 4vw, 21px); line-height:1.5; }
+  .modalBox h3 { margin-top:0; font-size:clamp(22px, 5.5vw, 29px); }
+  .modalContent { overflow-y:auto; min-height:0; }
   .modalClose { position:absolute; top:8px; right:10px; background:none; border:none;
-                color:var(--panel-close); font-size:31px; cursor:pointer; line-height:1; padding:4px; }
+                color:var(--panel-close); font-size:31px; cursor:pointer; line-height:1; padding:4px;
+                touch-action:manipulation; -webkit-tap-highlight-color:transparent; }
   #gameScreen { position:relative; width:100%; box-sizing:border-box; display:flex; flex-direction:column; align-items:center; min-height:calc(100vh - 12px); }
   #topBar { width:100%; display:flex; flex-wrap:wrap; gap:8px; justify-content:space-between; align-items:center; }
   #topLeft { display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
@@ -159,10 +166,14 @@
   #freePlayBtn { margin-top:28px; }
   #todayLabel { color:var(--muted); font-size:13px; }
   #dailyLabel { font-weight:bold; color:var(--locked-text); white-space:nowrap; padding:0 12px; }
-  #storageNotice { position:fixed; bottom:0; left:0; width:100%; box-sizing:border-box;
+  /* Flows with the rest of the menu (not position:fixed) so it can never
+     overlap/intercept taps on the content above it — on a short viewport
+     the page just scrolls, same as everything else, instead of a fixed
+     bar needing its height reserved and guessed at. */
+  #storageNotice { width:100%; box-sizing:border-box;
                     font-size:clamp(14px, 3.6vw, 18px); color:var(--muted); text-align:center;
                     display:flex; flex-wrap:wrap; align-items:center; justify-content:center; gap:8px;
-                    padding:14px 20px; background:var(--bg); z-index:40; }
+                    padding:14px 20px; margin-top:10px; background:var(--bg); }
   #storageNotice input { flex-shrink:0; }
 </style>
 </head>
@@ -218,24 +229,26 @@
 <div id="instructionsModal" class="modalOverlay hidden">
   <div class="modalBox">
     <button id="closeInstructions" class="modalClose">&times;</button>
-    <h3>How to play</h3>
-    <p>Click a cell to cycle blank → X → O. Every board can have at most 5 of
-    either symbol, and across the whole super-board neither X nor O can win
-    more than 5 of the 9 boards. A board tinted pink/blue with a corner
-    label has a given winner (X/O); a grey tint with "–" means a given
-    draw; no tint or label means the winner is unknown.</p>
-    <p>The pink and blue numbers along the edges give the required X and O
-    counts for that row or column. The Hint button won't fill anything in
-    for you — it briefly highlights the row, column, or board where a
-    deduction is currently possible, so you know where to look.</p>
-    <p>The message above the board reveals who wins the super-board overall
-    — X, O, or a cat's game (nobody) — even though most of the individual
-    board winners feeding into it stay hidden.</p>
-    <p>Undo steps back through your moves one at a time, all the way to the
-    start of the puzzle; Redo steps forward again.</p>
-    <p>Daily puzzles are the same for everyone each day and your progress is
-    saved automatically in this browser. Free Play puzzles are random and
-    not saved.</p>
+    <div class="modalContent">
+      <h3>How to play</h3>
+      <p>Click a cell to cycle blank → X → O. Every board can have at most 5 of
+      either symbol, and across the whole super-board neither X nor O can win
+      more than 5 of the 9 boards. A board tinted pink/blue with a corner
+      label has a given winner (X/O); a grey tint with "–" means a given
+      draw; no tint or label means the winner is unknown.</p>
+      <p>The pink and blue numbers along the edges give the required X and O
+      counts for that row or column. The Hint button won't fill anything in
+      for you — it briefly highlights the row, column, or board where a
+      deduction is currently possible, so you know where to look.</p>
+      <p>The message above the board reveals who wins the super-board overall
+      — X, O, or a cat's game (nobody) — even though most of the individual
+      board winners feeding into it stay hidden.</p>
+      <p>Undo steps back through your moves one at a time, all the way to the
+      start of the puzzle; Redo steps forward again.</p>
+      <p>Daily puzzles are the same for everyone each day and your progress is
+      saved automatically in this browser. Free Play puzzles are random and
+      not saved.</p>
+    </div>
   </div>
 </div>
 
