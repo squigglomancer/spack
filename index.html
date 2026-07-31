@@ -1,0 +1,234 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Tack!</title>
+<style>
+  @font-face {
+    font-family: 'rainyhearts';
+    src: url('fonts/rainyhearts.ttf');
+    font-weight: normal;
+    font-style: normal;
+  }
+
+  /* ==========================================================
+     Palette — edit these to reskin the whole page. Everything
+     below reads its colors from here.
+     ========================================================== */
+  :root {
+    --pink: #ff4992;              /* X symbol, active pink clue numbers, badges, pulses */
+    --pink-rgb: 255, 168, 197;    /* same color as R,G,B — used for tints/glows */
+    --pink-dim: #663d4b;          /* pink clue numbers once their target is met */
+
+    --blue: #6ccff6;              /* O symbol, active blue clue numbers, badges, pulses */
+    --blue-rgb: 77, 184, 255;     /* same color as R,G,B — used for tints/glows */
+    --blue-dim: #2f6f94;          /* blue clue numbers once their target is met */
+
+    --bg: #1a1718;                /* page background */
+    --text: #eee;                 /* main text */
+    --muted: #999;                /* secondary/faded text (status labels, footer) */
+
+    --cell-bg: #333;              /* empty cell */
+    --locked-bg: #555;            /* given/locked cell */
+    --locked-text: #9cf;          /* given/locked cell symbol, daily-mode label */
+
+    --grid-line: #999;            /* thick lines dividing the 3x3 sub-boards */
+    --draw-tint: rgba(200, 200, 200, 0.07); /* board wash when its given outcome is a draw */
+
+    --error: #ff2222;             /* rule-violation outline */
+    --error-bg: #4a1414;          /* rule-violation cell background */
+    --success: #7CFC00;           /* solved puzzle text, "solved" daily card */
+    --mismatch: #ff5555;
+
+    --hint-rgb: 255, 204, 51;     /* gold flash the Hint button uses to point at a deduction */
+    --glow-peak: #ffffff;         /* brightest point of the win-animation number glow */
+
+    --scrim: rgba(0, 0, 0, 0.65); /* corner badges + modal backdrop */
+    --panel-bg: #2a2a2a;          /* modal box background */
+    --panel-text: #ddd;           /* modal box text */
+    --panel-close: #ccc;          /* modal close button, "draw" corner badge */
+  }
+
+  body { font-family: 'rainyhearts', sans-serif; font-size:24px; background:var(--bg); color:var(--text); display:flex; flex-direction:column; align-items:center; padding:6px; max-width:1100px; margin:0 auto; box-sizing:border-box; }
+  button, select, input { font-family: 'rainyhearts', sans-serif; font-size:21px; }
+  h2 { font-size:40px; color:var(--pink); }
+  .cell { position:relative; width:58px; height:58px; display:flex; align-items:center; justify-content:center;
+          background:var(--cell-bg); font-size:32px; cursor:pointer; user-select:none; border-radius:3px; }
+  .cell.locked { background:var(--locked-bg); cursor:default; font-weight:bold; color:var(--locked-text); }
+  .cell.X { color:var(--pink); }
+  .cell.O { color:var(--blue); }
+  .cell.tint-X { box-shadow: inset 0 0 0 40px rgba(var(--pink-rgb), 0.16); }
+  .cell.tint-O { box-shadow: inset 0 0 0 40px rgba(var(--blue-rgb), 0.16); }
+  .cell.tint-draw { box-shadow: inset 0 0 0 40px var(--draw-tint); }
+  .cell.violation { box-shadow: inset 0 0 0 4px var(--error); background:var(--error-bg); }
+  .thickRight { border-right: 4px solid var(--grid-line); }
+  .thickBottom { border-bottom: 4px solid var(--grid-line); }
+  .match { color:var(--success); }
+  .mismatch { color:var(--mismatch); }
+  .clueNum { font-family: 'rainyhearts', 'Times New Roman', Times, Georgia, serif; font-weight:600; font-size:34px; line-height:1; }
+  .clueNum.x-active { color:var(--pink); }
+  .clueNum.x-done { color:var(--pink-dim); }
+  .clueNum.o-active { color:var(--blue); }
+  .clueNum.o-done { color:var(--blue-dim); }
+  .clueNumBig { font-family: 'rainyhearts', 'Times New Roman', Times, Georgia, serif; font-weight:600; font-size:50px; line-height:1; }
+  .clueNumBig.x-active { color:var(--pink); }
+  .clueNumBig.x-done { color:var(--pink-dim); }
+  .clueNumBig.o-active { color:var(--blue); }
+  .clueNumBig.o-done { color:var(--blue-dim); }
+  #controls { margin-top:0; width:100%; display:flex; justify-content:space-between; align-items:center; }
+  #controlsLeft, #controlsRight { display:flex; align-items:center; gap:13px; }
+  button, select { padding:12px 21px; cursor:pointer; }
+  button:disabled { opacity:0.35; cursor:not-allowed; }
+  #status { min-height: 26px; }
+  #metaResult { min-height: 26px; font-weight:bold; font-size:26px; }
+  .metaResult-X { color:var(--pink); }
+  .metaResult-O { color:var(--blue); }
+  .metaResult-draw { color:var(--muted); }
+  .cornerBadge { position:absolute; top:3px; left:3px; font-size:17px; line-height:1; padding:2px 5px;
+                 border-radius:3px; background:var(--scrim); z-index:2; font-weight:700; }
+  .cornerBadge.X { color:var(--pink); }
+  .cornerBadge.O { color:var(--blue); }
+  .cornerBadge.draw { color:var(--panel-close); }
+  .modalOverlay { position:fixed; top:0; left:0; width:100%; height:100%;
+                  background:var(--scrim); display:flex; align-items:center;
+                  justify-content:center; z-index:200; }
+  .modalOverlay.hidden { display:none; }
+  .modalBox { background:var(--panel-bg); padding:28px 34px; border-radius:8px; max-width:560px;
+              position:relative; color:var(--panel-text); font-size:21px; line-height:1.5; }
+  .modalBox h3 { margin-top:0; font-size:29px; }
+  .modalClose { position:absolute; top:8px; right:10px; background:none; border:none;
+                color:var(--panel-close); font-size:31px; cursor:pointer; line-height:1; padding:4px; }
+  #gameScreen { position:relative; width:100%; box-sizing:border-box; display:flex; flex-direction:column; align-items:center; min-height:calc(100vh - 12px); }
+  #topBar { width:100%; display:flex; justify-content:space-between; align-items:center; }
+  #topLeft { display:flex; align-items:center; gap:10px; }
+  #topRight { display:flex; align-items:center; gap:10px; }
+  #boardWrap { margin-top:auto; margin-bottom:auto; }
+  #difficultyButtons { display:flex; gap:8px; }
+  .diffBtn.active { background:var(--text); color:var(--bg); font-weight:bold; }
+  .cell.hintFlash { animation: hintFade 3s ease-out forwards; }
+  @keyframes hintFade {
+    0% { box-shadow: inset 0 0 0 4px rgba(var(--hint-rgb), 0.95); background-color: rgba(var(--hint-rgb), 0.18); }
+    100% { box-shadow: inset 0 0 0 4px rgba(var(--hint-rgb), 0); background-color: rgba(var(--hint-rgb), 0); }
+  }
+  @keyframes pulseGrow {
+    0% { transform: scale(0); }
+    50% { transform: scale(1); }
+    100% { transform: scale(0); }
+  }
+  .pulseSq { position:absolute; inset:3px; border-radius:2px; pointer-events:none; }
+  .pulseSq-blue { background:var(--blue); }
+  .pulseSq-red { background:var(--pink); }
+  @keyframes growHold {
+    0% { transform: scale(0); }
+    100% { transform: scale(1); }
+  }
+  .pulseSq-blue-hold { background: rgba(var(--blue-rgb), 0.5); }
+  .pulseSq-red-hold { background: rgba(var(--pink-rgb), 0.5); }
+  @keyframes numberGlowBlue {
+    0% { color:var(--blue-dim); }
+    25% { color:var(--blue); }
+    50% { color:var(--glow-peak); }
+    75% { color:var(--blue); }
+    100% { color:var(--blue-dim); }
+  }
+  @keyframes numberGlowRed {
+    0% { color:var(--pink-dim); }
+    25% { color:var(--pink); }
+    50% { color:var(--glow-peak); }
+    75% { color:var(--pink); }
+    100% { color:var(--pink-dim); }
+  }
+  .hidden { display:none !important; }
+  #menuScreen { display:flex; flex-direction:column; align-items:center; justify-content:center; min-height:calc(100vh - 12px); }
+  #dailyCards { display:flex; gap:18px; margin-top:18px; }
+  .dailyCard { display:flex; flex-direction:column; align-items:center; gap:8px;
+               padding:23px 34px; font-size:25px; min-width:130px; }
+  .cardStatus { font-size:18px; }
+  .cardStatus.new { color:var(--muted); }
+  .cardStatus.inprogress { color:var(--blue); }
+  .cardStatus.solved { color:var(--success); }
+  #freePlayBtn { margin-top:28px; }
+  #todayLabel { color:var(--muted); font-size:13px; }
+  #dailyLabel { font-weight:bold; color:var(--locked-text); white-space:nowrap; padding:0 12px; }
+  #storageNotice { position:fixed; bottom:0; left:0; width:100%; box-sizing:border-box;
+                    font-size:18px; color:var(--muted); text-align:center;
+                    display:flex; align-items:center; justify-content:center; gap:8px;
+                    padding:14px 20px; background:var(--bg); z-index:40; }
+  #storageNotice input { flex-shrink:0; }
+</style>
+</head>
+<body>
+<div id="menuScreen">
+  <h2>Tack!</h2>
+  <p id="todayLabel"></p>
+  <div id="dailyCards">
+    <button class="dailyCard" data-difficulty="easy">Easy<span class="cardStatus"></span></button>
+    <button class="dailyCard" data-difficulty="medium">Medium<span class="cardStatus"></span></button>
+    <button class="dailyCard" data-difficulty="hard">Hard<span class="cardStatus"></span></button>
+  </div>
+  <button id="freePlayBtn">Free Play (random, practice — not saved)</button>
+
+  <label id="storageNotice">
+    <input type="checkbox" id="saveToggle" checked>
+    Hello! This site saves your puzzle progress locally in your browser. No
+    data is sent anywhere. Uncheck this box if you want to turn this off ^.^
+  </label>
+</div>
+
+<div id="gameScreen" class="hidden">
+<div id="topBar">
+  <div id="topLeft">
+    <button id="menuBtn">Home</button>
+    <div id="difficultyButtons">
+      <button class="diffBtn" data-difficulty="easy">Easy</button>
+      <button class="diffBtn" data-difficulty="medium">Medium</button>
+      <button class="diffBtn" data-difficulty="hard">Hard</button>
+    </div>
+  </div>
+  <div id="topRight">
+    <button id="hintBtn">Hint</button>
+    <button id="instructionsBtn" title="Instructions">?</button>
+  </div>
+</div>
+<p id="metaResult"></p>
+<div id="boardWrap"></div>
+<div id="controls">
+  <div id="controlsLeft">
+    <span id="dailyLabel" class="hidden"></span>
+    <button id="resetBtn">Reset</button>
+  </div>
+  <div id="controlsRight">
+    <button id="undoBtn">Undo</button>
+    <button id="redoBtn">Redo</button>
+  </div>
+</div>
+<p id="status"></p>
+</div>
+
+<div id="instructionsModal" class="modalOverlay hidden">
+  <div class="modalBox">
+    <button id="closeInstructions" class="modalClose">&times;</button>
+    <h3>How to play</h3>
+    <p>Click a cell to cycle blank → X → O. Every board can have at most 5 of
+    either symbol, and across the whole super-board neither X nor O can win
+    more than 5 of the 9 boards. A board tinted pink/blue with a corner
+    label has a given winner (X/O); a grey tint with "–" means a given
+    draw; no tint or label means the winner is unknown.</p>
+    <p>The pink and blue numbers along the edges give the required X and O
+    counts for that row or column. The Hint button won't fill anything in
+    for you — it briefly highlights the row, column, or board where a
+    deduction is currently possible, so you know where to look.</p>
+    <p>The message above the board reveals who wins the super-board overall
+    — X, O, or a cat's game (nobody) — even though most of the individual
+    board winners feeding into it stay hidden.</p>
+    <p>Undo steps back through your moves one at a time, all the way to the
+    start of the puzzle; Redo steps forward again.</p>
+    <p>Daily puzzles are the same for everyone each day and your progress is
+    saved automatically in this browser. Free Play puzzles are random and
+    not saved.</p>
+  </div>
+</div>
+
+<script src="game.js"></script>
+</body>
+</html>
